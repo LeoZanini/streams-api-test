@@ -5,40 +5,25 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function GET(endpoint: string) {
-  const text = await fetch('https://jsonplaceholder.typicode.com' + endpoint)
-    .then((res) => {
-      const reader = res.body?.getReader();
-      return new ReadableStream({
-        async start(controller) {
-          // The following function handles each data chunk
-          async function push() {
-            const { done, value } = (await reader?.read()) || {};
-            // Introduce a delay between each chunk
-            await delay(5); // 500ms delay, adjust as needed
-            revalidatePath('/(sidebar)/simulate', 'page');
+export async function GET(bytes: number) {
+  const url = `https://httpbin.org/stream-bytes/${bytes}`;
 
-            if (done) {
-              console.log('done', done);
-              controller.close();
+  const data = await fetch(url).then((res) => res.json());
+  const text = new TextDecoder();
 
-              return;
-            }
-            // Get the data and send it to the browser via the controller
-            controller.enqueue(value);
-            // Check chunks by logging to the console
-            console.log(done, value);
-            push();
-          }
-          push();
+  new Response(
+    new ReadableStream({
+      async start(controller) {
+        for (const item of data) {
+          await delay(500); // Simulate a delay for each item
+          controller.enqueue(JSON.stringify(item) + '\n');
         }
-      });
-    })
-    .then((stream) => new Response(stream, { headers: { 'Content-Type': 'text/html' } }).text())
-    .then((result) => {
-      console.log(result);
-      return result;
-    });
+        controller.close();
+        revalidatePath('/');
+      }
+    }),
+    { headers: { 'Content-Type': 'text/plain' } }
+  );
 
-  return text;
+  Response.body;
 }
